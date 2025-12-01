@@ -2,6 +2,8 @@
 
 A Lua script for [Darktable](https://www.darktable.org/) that provides lens metadata correction, automatic lens name substitution for lensfun compatibility, and crop factor fixes.
 
+<img width="1154" height="436" alt="image" src="https://github.com/user-attachments/assets/ab706634-cfac-4516-b7e4-7a78252ee7c3" />
+
 ## Features
 
 - **Manual lens selection** — Dropdown with predefined lens models (vintage lenses, manual lenses)
