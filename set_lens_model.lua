@@ -7,10 +7,10 @@
     Features:
     - Manual lens selection with automatic EXIF update
     - Lens name substitution for lensfun compatibility
-    - Crop factor correction for specific lens+camera combinations
+    - Crop factor correction for full frame cameras (fixes incorrect 1.5x crop)
     - Film camera tagging (Zenit, Nikon, Praktika)
     - Film stock tagging
-    - Automatic lens correction on import
+    - Automatic lens and crop factor correction on import
 
     Author: Vladimir Tyrtov
     License: MIT
@@ -29,6 +29,7 @@ end
 local lens_names = {
     ["EF70-200mm f/4L IS USM"] = "Canon EF 70-200mm f/4L IS USM",
     ["EF35mm f/2 IS USM"] = "Canon EF 35mm f/2 IS USM",
+    ["Canon EF 35mm f/2 IS USM"] = "Canon EF 35mm f/2 IS USM",
     ["EF16-35mm f/4L IS USM"] = "Canon EF 16-35mm f/4L IS USM",
     ["28 - 70mm F2.8 DG DN | Contemporary 021"] = "28-70mm F2.8 DG DN | Contemporary 021",
     ["Sigma 50mm f/1.4 DG HSM | A"] = "Sigma 50mm f/1.4 DG HSM | A",
@@ -37,13 +38,13 @@ local lens_names = {
     ["35mm F2 DG DN | Contemporary 020"] = "Sigma 35mm F2 DG DN | Contemporary 020",
     ["TAMRON SP 24-70mm F/2.8 Di VC USD G2 A032"] = "Tamron SP 24-70mm f/2.8 Di VC USD G2",
     ["Tamron SP 24-70mm f/2.8 Di VC USD G2"] = "Tamron SP 24-70mm f/2.8 Di VC USD G2",
+    ["Samyang 85mm f/1.4 IF UMC Aspherical"] = "Samyang 85mm f/1.4 IF UMC Aspherical",
+    ["Canon EF 70-200mm f/4L IS USM"] = "Canon EF 70-200mm f/4L IS USM",
 }
 
--- Crop factor correction table
--- For lens+camera combinations that report incorrect FocalLengthIn35mmFormat
--- Key: "<lens_name>|<camera_model>", Value: true if correction needed
-local crop_factor_fix = {
-    ["Tamron SP 24-70mm f/2.8 Di VC USD G2|Canon EOS 6D Mark II"] = true,
+-- Cameras that incorrectly report crop factor (full frame cameras showing 1.5 instead of 1.0)
+local full_frame_cameras = {
+    ["Canon EOS 6D Mark II"] = true,
 }
 
 -- Available lens models for manual selection
@@ -277,19 +278,18 @@ local function set_lens_model(images, model)
                 string.format('-ApertureValue="%s" -MaxApertureValue="%s" -FNumber="%s"', lm.ap, lm.ap, lm.ap))
         end
 
-        -- Check if crop factor correction needed for this lens+camera combination
+        -- Check if crop factor correction needed for full frame camera
         if not lens_missing and lm.substitution then
             local camera_model = image.exif_model or ""
-            local override_key = lm.model .. "|" .. camera_model
-            if crop_factor_fix[override_key] then
+            if full_frame_cameras[camera_model] then
                 -- For full frame: FocalLengthIn35mmFormat = FocalLength (crop = 1.0)
                 local fl = image.exif_focal_length
                 if fl and fl > 0 then
                     table.insert(exiftool_commands, string.format('-FocalLengthIn35mmFormat="%d"', math.floor(fl + 0.5)))
                     -- Also update crop factor in Darktable database
                     image.exif_crop = 1.0
-                    darktable.print(string.format("[%s] Crop factor fix: FocalLengthIn35mmFormat=%d, exif_crop=1.0",
-                        image.filename, math.floor(fl + 0.5)))
+                    darktable.print(string.format("[%s] Crop factor fix for %s: exif_crop=1.0",
+                        image.filename, camera_model))
                 end
             end
         end
@@ -396,34 +396,35 @@ darktable.register_lib(
 local function auto_fix_on_import(event, image)
     local exif_lens = image.exif_lens or ""
     local camera_model = image.exif_model or ""
-
-    darktable.print("[post-import] " .. image.filename .. " lens: " .. exif_lens)
+    local changes_made = false
 
     -- Check if lens substitution exists
     local new_lens_name = lens_names[exif_lens]
-    if not new_lens_name then
-        return
+    if new_lens_name then
+        -- Update lens name in Darktable database
+        image.exif_lens = new_lens_name
+        changes_made = true
     end
 
-    -- Update lens name in Darktable database
-    image.exif_lens = new_lens_name
-
-    -- Check if crop factor correction needed
-    local override_key = new_lens_name .. "|" .. camera_model
+    -- Check if crop factor correction needed for full frame camera
     local need_crop_fix = false
-    if crop_factor_fix[override_key] then
+    if full_frame_cameras[camera_model] then
         -- Set crop factor = 1.0 (full frame)
         image.exif_crop = 1.0
         need_crop_fix = true
+        changes_made = true
     end
 
-    local msg = string.format("[auto-import] %s: %s", image.filename, new_lens_name)
-    if need_crop_fix then
-        msg = msg .. " (crop=1.0)"
+    -- Only print message if changes were made
+    if changes_made then
+        local lens_display = new_lens_name or exif_lens
+        local msg = string.format("[auto-import] %s: %s", image.filename, lens_display)
+        if need_crop_fix then
+            msg = msg .. string.format(" (crop=1.0 for %s)", camera_model)
+        end
+        darktable.print(msg)
     end
-    darktable.print(msg)
 end
 
 -- Register post-import-image event handler
 darktable.register_event("lens_auto_fix", "post-import-image", auto_fix_on_import)
-darktable.print("[set_lens_model] post-import-image event registered")
