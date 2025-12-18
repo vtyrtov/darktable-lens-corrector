@@ -1,6 +1,6 @@
 # Darktable Lens Corrector
 
-A Lua script for [Darktable](https://www.darktable.org/) that provides lens metadata correction, automatic lens name substitution for lensfun compatibility, and crop factor fixes.
+A Lua script for [Darktable](https://www.darktable.org/) that provides lens metadata correction, automatic lens name substitution for lensfun compatibility, and crop factor fixes for full frame cameras.
 
 <img width="1154" height="436" alt="image" src="https://github.com/user-attachments/assets/ab706634-cfac-4516-b7e4-7a78252ee7c3" />
 
@@ -8,7 +8,7 @@ A Lua script for [Darktable](https://www.darktable.org/) that provides lens meta
 
 - **Manual lens selection** — Dropdown with predefined lens models (vintage lenses, manual lenses)
 - **Automatic lens name substitution** — Maps EXIF lens names to lensfun-compatible names on import
-- **Crop factor correction** — Fixes incorrect crop factor for specific lens+camera combinations
+- **Crop factor correction** — Fixes incorrect crop factor for full frame cameras (e.g., Canon EOS 6D Mark II reports 1.5x instead of 1.0x)
 - **Capture time override** — Option to set current date/time as capture date
 - **Film camera tagging** — Add tags for film cameras (Zenit, Nikon FE, Praktika)
 - **Film stock tagging** — Add tags for film stocks (Ilford, Kodak, Shanghai, etc.)
@@ -41,7 +41,7 @@ A Lua script for [Darktable](https://www.darktable.org/) that provides lens meta
 
 The script automatically processes images on import:
 - Substitutes lens names for lensfun compatibility
-- Corrects crop factor for configured lens+camera combinations
+- Corrects crop factor for full frame cameras to 1.0
 - Updates Darktable database directly (no RAW file modification)
 
 ## Configuration
@@ -58,15 +58,14 @@ local lens_names = {
 }
 ```
 
-### Adding Crop Factor Fixes
+### Adding Full Frame Cameras for Crop Factor Fix
 
-Edit the `crop_factor_fix` table:
+Edit the `full_frame_cameras` table to add cameras that incorrectly report crop factor:
 
 ```lua
-local crop_factor_fix = {
-    ["Lens Name|Camera Model"] = true,
-    -- Example:
-    ["Tamron SP 24-70mm f/2.8 Di VC USD G2|Canon EOS 6D Mark II"] = true,
+local full_frame_cameras = {
+    ["Canon EOS 6D Mark II"] = true,
+    -- Add more full frame cameras here if needed
 }
 ```
 
